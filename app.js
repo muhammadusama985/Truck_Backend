@@ -19,6 +19,9 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+const MAILBOXLAYER_API_KEY = "c7671af7ab5bb1add9ec784d493a9204"; // Replace with your actual API key
+
+
 
 // Create an Express app
 const app = express();
@@ -144,28 +147,96 @@ app.post('/api/uploadUserReceipt', userReceiptUpload.single('receipt'), async (r
 
 
 
+// app.post("/api/add-user", profilePicUpload.single("profilePic"), async (req, res) => {
+//     try {
+//         const { firstName, lastName, email, phone, accountType, gender, country, language, password } = req.body;
+//         const profilePic = req.file ? req.file.path : null; // Use Cloudinary URL
+
+//         const query = `
+//             INSERT INTO users (first_name, last_name, email, phone, account_type, gender, profile_pic, country, language, password)
+//             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
+//         `;
+//         const values = [firstName, lastName, email, phone, accountType, gender, profilePic, country, language, password];
+
+//         const result = await pool.query(query, values);
+
+//         res.status(201).json({
+//             message: "User added successfully",
+//             user: result.rows[0],
+//         });
+//     } catch (error) {
+//         console.error(error);
+//         res.status(500).json({ message: "Error saving user data" });
+//     }
+// });
+
 app.post("/api/add-user", profilePicUpload.single("profilePic"), async (req, res) => {
     try {
-        const { firstName, lastName, email, phone, accountType, gender, country, language, password } = req.body;
-        const profilePic = req.file ? req.file.path : null; // Use Cloudinary URL
-
-        const query = `
-            INSERT INTO users (first_name, last_name, email, phone, account_type, gender, profile_pic, country, language, password)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
-        `;
-        const values = [firstName, lastName, email, phone, accountType, gender, profilePic, country, language, password];
-
-        const result = await pool.query(query, values);
-
-        res.status(201).json({
-            message: "User added successfully",
-            user: result.rows[0],
+      const {
+        firstName,
+        lastName,
+        email,
+        phone,
+        accountType,
+        gender,
+        country,
+        language,
+        password,
+      } = req.body;
+  
+      const profilePic = req.file ? req.file.path : null; // Use Cloudinary URL if applicable
+  
+      // Step 1: Verify email using Mailboxlayer API
+      const emailVerificationResponse = await axios.get(
+        "http://apilayer.net/api/check",
+        {
+          params: {
+            access_key: MAILBOXLAYER_API_KEY,
+            email: email,
+            smtp: 1, // Perform SMTP verification
+            format: 1, // Get response in JSON format
+          },
+        }
+      );
+  
+      const emailData = emailVerificationResponse.data;
+  
+      if (!emailData.format_valid || !emailData.smtp_check || emailData.disposable) {
+        return res.status(400).json({
+          message: "Invalid or disposable email address. Please use a valid email.",
         });
+      }
+  
+      // Step 2: Insert user data into the database
+      const query = `
+        INSERT INTO users (first_name, last_name, email, phone, account_type, gender, profile_pic, country, language, password)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
+      `;
+      const values = [
+        firstName,
+        lastName,
+        email,
+        phone,
+        accountType,
+        gender,
+        profilePic,
+        country,
+        language,
+        password,
+      ];
+  
+      const result = await pool.query(query, values);
+  
+      // Step 3: Respond with success message
+      res.status(201).json({
+        message: "User added successfully",
+        user: result.rows[0],
+      });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Error saving user data" });
+      console.error("Error in /api/add-user:", error.message);
+      res.status(500).json({ message: "Error saving user data" });
     }
-});
+  });
 
 
 // Login route
