@@ -180,6 +180,11 @@ app.post('/api/login', async (req, res) => {
             return res.status(404).json({ message: 'User  email not found' });
         }
 
+          // Check if the email is verified
+          if (user.verified === 'unverified') {
+            return res.status(403).json({ message: 'This email is unverified. Please wait to get verified.' });
+        }
+
         // Check if the password matches
         if (user.password !== password) {
             return res.status(401).json({ message: 'Password is incorrect' });
@@ -203,6 +208,45 @@ app.get("/api/users", async (req, res) => {
         res.status(500).json({ error: "Failed to fetch users" });
     }
 });
+
+// Endpoint to get unverified users
+app.get("/api/unverifiedUsers", async (req, res) => {
+    try {
+      const query = "SELECT * FROM users WHERE verified = 'unverified'";
+      const result = await pool.query(query);
+  
+      res.status(200).json(result.rows);
+    } catch (error) {
+      console.error("Error fetching unverified users:", error.message);
+      res.status(500).json({ message: "Error fetching unverified users" });
+    }
+  });
+  
+  // Endpoint to verify a user
+  app.post("/api/verifyUser", async (req, res) => {
+    const { userId } = req.body;
+  
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required" });
+    }
+  
+    try {
+      const query = "UPDATE users SET verified = 'verified' WHERE user_id = $1 RETURNING *";
+      const result = await pool.query(query, [userId]);
+  
+      if (result.rowCount === 0) {
+        return res.status(404).json({ message: "User not found" });
+      }
+  
+      res.status(200).json({
+        message: "User successfully verified",
+        user: result.rows[0],
+      });
+    } catch (error) {
+      console.error("Error verifying user:", error.message);
+      res.status(500).json({ message: "Error verifying user" });
+    }
+  });
 
 
 // Endpoint to save order data
